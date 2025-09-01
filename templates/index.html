@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Astronomical Imaging Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Ask about Astronomical Imaging + Deep Learning</h1>
+        <div id="chat-box"></div>
+
+        <div class="input-container">
+            <input type="text" id="question" placeholder="Type your question...">
+            <button onclick="sendQuestion()">Ask</button>
+        </div>
+    </div>
+
+    <script>
+        async function sendQuestion() {
+            const questionInput = document.getElementById("question");
+            const question = questionInput.value.trim();
+            if (!question) return;
+
+            const chatBox = document.getElementById("chat-box");
+            chatBox.innerHTML += `<div class="user">You: ${question}</div>`;
+            questionInput.value = "";
+
+            const response = await fetch("/ask", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({question: question})
+            });
+
+            const data = await response.json();
+            chatBox.innerHTML += `<div class="bot">AI: ${data.answer}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
