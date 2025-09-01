@@ -4,6 +4,7 @@ pycache/
 *.pyo
 *.pyd
 .Python
+.env
 env/
 venv/
 pip-selfcheck.json

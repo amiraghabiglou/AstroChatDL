@@ -2,40 +2,152 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Astronomical Imaging Chat</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Astro DL Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- For rendering Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>Ask about Astronomical Imaging + Deep Learning</h1>
-        <div id="chat-box"></div>
+        <header>
+            <h1>Astro DL Chat</h1>
+            <p>Your AI assistant for astronomical imaging and deep learning.</p>
+        </header>
 
-        <div class="input-container">
-            <input type="text" id="question" placeholder="Type your question...">
-            <button onclick="sendQuestion()">Ask</button>
-        </div>
+        <main>
+            <div class="card">
+                <div id="chat-box">
+                    <div class="message bot-message">
+                        <div class="avatar">AI</div>
+                        <div class="text">Hello! How can I help you today? Ask me anything about radio interferometry, computer vision in astronomy, or related topics.</div>
+                    </div>
+                </div>
+                <div id="loading-indicator" class="hidden">
+                    <div class="avatar">AI</div>
+                    <div class="text">Thinking...</div>
+                </div>
+
+                {% if not api_key_set %}
+                <div class="api-key-warning">
+                    <strong>Warning:</strong> The `OPENAI_API_KEY` is not set on the server. The chat functionality will not work.
+                </div>
+                {% endif %}
+
+                <div class="input-area">
+                    <input type="text" id="question-input" placeholder="Ask a question..." autocomplete="off">
+                    <button id="send-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by Flask & OpenAI. A portfolio project.</p>
+        </footer>
     </div>
 
     <script>
-        async function sendQuestion() {
-            const questionInput = document.getElementById("question");
+        const questionInput = document.getElementById('question-input');
+        const sendBtn = document.getElementById('send-btn');
+        const chatBox = document.getElementById('chat-box');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        const sendQuestion = async () => {
             const question = questionInput.value.trim();
             if (!question) return;
 
-            const chatBox = document.getElementById("chat-box");
-            chatBox.innerHTML += `<div class="user">You: ${question}</div>`;
-            questionInput.value = "";
+            // Display user's question
+            appendMessage('user', question);
+            questionInput.value = '';
+            questionInput.disabled = true;
+            sendBtn.disabled = true;
+            loadingIndicator.classList.remove('hidden');
 
-            const response = await fetch("/ask", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({question: question})
-            });
+            let botMessageContainer;
 
-            const data = await response.json();
-            chatBox.innerHTML += `<div class="bot">AI: ${data.answer}</div>`;
+            try {
+                const response = await fetch("/ask", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({question: question})
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${errorText}`);
+                }
+
+                loadingIndicator.classList.add('hidden');
+
+                // Create the container for the bot's response
+                botMessageContainer = appendMessage('bot', '');
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = '';
+
+                // Read the stream
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    fullResponse += decoder.decode(value, { stream: true });
+                    // Use marked.parse to render Markdown in real-time
+                    botMessageContainer.innerHTML = marked.parse(fullResponse);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                }
+
+            } catch (error) {
+                console.error("Fetch Error:", error);
+                loadingIndicator.classList.add('hidden');
+                // If there was an error, make sure the bot message container exists before putting error text in it
+                if (!botMessageContainer) {
+                   botMessageContainer = appendMessage('bot', '');
+                }
+                botMessageContainer.innerHTML = `<strong>Error:</strong> ${error.message}`;
+
+            } finally {
+                questionInput.disabled = false;
+                sendBtn.disabled = false;
+                questionInput.focus();
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        };
+
+        const appendMessage = (sender, text) => {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', `${sender}-message`);
+
+            const avatarDiv = document.createElement('div');
+            avatarDiv.classList.add('avatar');
+            avatarDiv.textContent = sender === 'user' ? 'You' : 'AI';
+
+            const textDiv = document.createElement('div');
+            textDiv.classList.add('text');
+            // For user messages, just set text content. For bot, it will be filled by Markdown.
+            if (sender === 'user') {
+                textDiv.textContent = text;
+            }
+
+            messageDiv.appendChild(avatarDiv);
+            messageDiv.appendChild(textDiv);
+            chatBox.appendChild(messageDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
-        }
+
+            // Return the text part of the message so it can be updated
+            return textDiv;
+        };
+
+        sendBtn.addEventListener('click', sendQuestion);
+        questionInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendQuestion();
+            }
+        });
     </script>
 </body>
 </html>
+
